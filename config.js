@@ -1,9 +1,12 @@
 // Google Sheets 설정
-// 시트 ID: Google Sheets URL에서 '/d/' 다음부터 '/edit' 전까지의 부분
-const SHEET_ID = '1eZmbqq1oGiafmz_1C0QaUYmjKjzMGWVXMRcdZqM6_4U';
+const SHEET_ID = '1WDlNHl4JbT2b6qjI5p9p9drheY4vEBtCVkZ6MLJo8oc';
 
-// CSV 내보내기 URL (자동 생성됨)
+// CSV 내보내기 URL (읽기용)
 const GOOGLE_SHEETS_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=0`;
+
+// Google Apps Script Web App URL (좋아요 API용)
+// ⚠️ 이 URL을 Apps Script 배포 후 실제 URL로 변경해야 합니다!
+const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbxlRwgtmgMOQgeOO4k8lfC5l47jWC9bvOBrwXem_aSA7i3GI6cxc4PC9lpR2I1KPjll/exec';
 
 // 웹사이트 설정
 const SITE_CONFIG = {
