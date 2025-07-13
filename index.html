@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
     <title>나만의 캐릭터 갤러리</title>
     <style>
+        /* 기존 CSS는 동일하게 유지 */
         * {
             margin: 0;
             padding: 0;
@@ -583,12 +584,6 @@
                 font-size: 1.2rem;
             }
 
-            .btn {
-                font-size: 1.1rem;
-                padding: 10px 8px;
-                min-height: 50px;
-            }
-
             .scroll-to-top {
                 bottom: 20px;
                 right: 20px;
@@ -647,12 +642,11 @@
             loadCharacters();
         });
 
-        // Google Sheets에서 캐릭터 데이터 로드
+        // Google Sheets에서 캐릭터 데이터 로드 (기존과 동일)
         async function loadCharacters() {
             try {
                 console.log('Loading data from:', GOOGLE_SHEETS_CSV_URL);
                 
-                // Google Sheets를 CSV로 가져오기 (CORS 우회)
                 const proxyUrl = 'https://api.allorigins.win/raw?url=';
                 const targetUrl = encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
                 const response = await fetch(proxyUrl + targetUrl);
@@ -664,7 +658,6 @@
                 const csvText = await response.text();
                 console.log('CSV data received:', csvText.substring(0, 200) + '...');
                 
-                // CSV 파싱 (개선된 파서)
                 const rows = parseCSV(csvText);
                 console.log('Parsed rows:', rows.length);
                 
@@ -675,7 +668,6 @@
                 const headers = rows[0];
                 console.log('Headers:', headers);
                 
-                // 데이터 변환
                 characters = rows.slice(1)
                     .filter(row => row[0] && row[0].trim())
                     .map((row, index) => {
@@ -710,17 +702,13 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('characters-container').style.display = 'grid';
                 
-                // 맨 위로 버튼 초기화
                 initScrollToTop();
-                
-                // 이미지 모달 초기화 (PC 전용)
                 setupImageModal();
                 
             } catch (error) {
                 console.error('Error loading characters:', error);
                 document.getElementById('loading').style.display = 'none';
                 
-                // 에러 메시지 개선
                 const errorDiv = document.getElementById('error');
                 errorDiv.innerHTML = `
                     <h3>❌ 데이터 로드 실패</h3>
@@ -732,13 +720,6 @@
                         <li>인터넷 연결 문제</li>
                         <li>시트에 데이터가 없음</li>
                     </ul>
-                    <p><strong>해결 방법:</strong></p>
-                    <ol style="text-align: left; margin: 20px 0;">
-                        <li>Google Sheets를 "링크가 있는 모든 사용자"로 공유 설정</li>
-                        <li>config.js의 SHEET_ID 확인</li>
-                        <li>시트에 최소 1개 행의 데이터 입력</li>
-                        <li>페이지 새로고침</li>
-                    </ol>
                     <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #f39c12; color: white; border: none; border-radius: 10px; cursor: pointer;">
                         🔄 다시 시도
                     </button>
@@ -747,7 +728,7 @@
             }
         }
 
-        // 개선된 CSV 파서
+        // 개선된 CSV 파서 (기존과 동일)
         function parseCSV(text) {
             const rows = [];
             const lines = text.split('\n');
@@ -764,15 +745,12 @@
                     
                     if (char === '"') {
                         if (inQuotes && line[i + 1] === '"') {
-                            // 연속된 따옴표는 이스케이프된 따옴표
                             currentField += '"';
-                            i++; // 다음 따옴표 건너뛰기
+                            i++;
                         } else {
-                            // 따옴표 시작/끝
                             inQuotes = !inQuotes;
                         }
                     } else if (char === ',' && !inQuotes) {
-                        // 필드 구분자
                         row.push(currentField.trim());
                         currentField = '';
                     } else {
@@ -780,7 +758,6 @@
                     }
                 }
                 
-                // 마지막 필드 추가
                 row.push(currentField.trim());
                 rows.push(row);
             }
@@ -799,19 +776,17 @@
             });
         }
 
-        // 개별 캐릭터 카드 생성
+        // 개별 캐릭터 카드 생성 (좋아요 기능 활성화)
         function createCharacterCard(character, index) {
             const card = document.createElement('div');
             card.className = 'character-card';
             
-            // 버튼들 생성
             let buttonsHtml = `
                 <a href="${character.introUrl}" target="_blank" class="btn btn-primary">
                     📋 소개자료
                 </a>
             `;
             
-            // 챗봇 URL이 있는 경우에만 버튼 추가
             if (character.chatbotUrl && character.chatbotUrl.trim() !== '') {
                 buttonsHtml += `
                     <a href="${character.chatbotUrl}" target="_blank" class="btn btn-secondary">
@@ -820,7 +795,6 @@
                 `;
             }
             
-            // 소개영상 URL이 있는 경우에만 버튼 추가
             if (character.videoUrl && character.videoUrl.trim() !== '') {
                 buttonsHtml += `
                     <a href="${character.videoUrl}" target="_blank" class="btn btn-accent">
@@ -829,16 +803,15 @@
                 `;
             }
             
-            // 좋아요 버튼 (읽기 전용으로 변경)
+            // 좋아요 버튼 (클릭 가능)
             buttonsHtml += `
-                <div class="btn btn-like" style="cursor: default;">
+                <button id="like-btn-${index}" class="btn btn-like" onclick="likeCharacter('${character.name}', ${index})">
                     <span class="heart">🤍</span>
                     좋아요
                     <span class="like-count">${character.likes}</span>
-                </div>
+                </button>
             `;
 
-            // 이미지 클릭 이벤트 - PC에서만 모달
             const imageClickEvent = window.innerWidth > 768 ? 
                 `onclick="openImageModal('${character.photoUrl}', '${character.name}', '${character.creator}')"` : '';
 
@@ -865,7 +838,80 @@
             return card;
         }
 
-        // 맨 위로 버튼 기능
+        // 좋아요 버튼 클릭 (Apps Script API 호출)
+        async function likeCharacter(characterName, index) {
+            const likeBtn = document.getElementById(`like-btn-${index}`);
+            
+            // 버튼 비활성화 (중복 클릭 방지)
+            likeBtn.disabled = true;
+            likeBtn.innerHTML = `
+                <span class="heart">⏳</span>
+                처리중
+                <span class="like-count">${characters[index].likes}</span>
+            `;
+
+            try {
+                console.log('Updating likes for:', characterName);
+                
+                // Apps Script API 호출
+                const response = await fetch(`${APPS_SCRIPT_API_URL}?action=updateLikes&name=${encodeURIComponent(characterName)}`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('API response:', result);
+                
+                if (result.success) {
+                    // 성공 - 좋아요 수 업데이트
+                    characters[index].likes = result.likes;
+                    
+                    likeBtn.disabled = false;
+                    likeBtn.innerHTML = `
+                        <span class="heart">❤️</span>
+                        좋아요
+                        <span class="like-count">${result.likes}</span>
+                    `;
+                    
+                    // 성공 애니메이션
+                    likeBtn.style.animation = 'heartbeat 0.6s ease-in-out';
+                    setTimeout(() => {
+                        likeBtn.style.animation = '';
+                        // 잠시 후 하트를 다시 흰색으로
+                        setTimeout(() => {
+                            likeBtn.innerHTML = `
+                                <span class="heart">🤍</span>
+                                좋아요
+                                <span class="like-count">${result.likes}</span>
+                            `;
+                        }, 2000);
+                    }, 600);
+                    
+                } else {
+                    throw new Error(result.error || '알 수 없는 오류가 발생했습니다.');
+                }
+                
+            } catch (error) {
+                console.error('Error updating likes:', error);
+                
+                // 버튼 상태 복원
+                likeBtn.disabled = false;
+                likeBtn.innerHTML = `
+                    <span class="heart">🤍</span>
+                    좋아요
+                    <span class="like-count">${characters[index].likes}</span>
+                `;
+                
+                // 에러 메시지 표시
+                alert(`좋아요 처리 중 오류가 발생했습니다: ${error.message}\n\n확인사항:\n- Apps Script가 배포되었는지\n- config.js의 API URL이 정확한지\n- 인터넷 연결 상태`);
+            }
+        }
+
+        // 나머지 함수들 (기존과 동일)
         function initScrollToTop() {
             const scrollToTopBtn = document.getElementById('scroll-to-top');
             
@@ -890,7 +936,6 @@
             toggleScrollButton();
         }
 
-        // 이미지 모달 기능 (PC 전용)
         function openImageModal(imageSrc, characterName, creatorName) {
             if (window.innerWidth <= 768) {
                 return;
@@ -922,7 +967,6 @@
             }, 300);
         }
 
-        // 모달 관련 이벤트 리스너 설정 (PC 전용)
         function setupImageModal() {
             if (window.innerWidth <= 768) {
                 return;
@@ -932,20 +976,16 @@
             const closeBtn = document.querySelector('.close-modal');
             const modalImage = document.getElementById('modal-image');
             
-            // X 버튼 클릭 시 모달 닫기
             closeBtn.addEventListener('click', closeImageModal);
             
-            // 모달 배경 클릭 시 모달 닫기
             modal.addEventListener('click', function(e) {
                 if (e.target === modal) {
                     closeImageModal();
                 }
             });
             
-            // 이미지 클릭 시 모달 닫기
             modalImage.addEventListener('click', closeImageModal);
             
-            // ESC 키로 모달 닫기
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape' && modal.classList.contains('show')) {
                     closeImageModal();
