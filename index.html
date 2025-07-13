@@ -824,39 +824,104 @@
             }
         }
 
-        // Google Sheets에서 캐릭터 데이터 로드 (최적화)
+        // Google Sheets에서 캐릭터 데이터 로드 (다중 방법 시도)
         async function loadCharacters() {
-            try {
-                console.log('Loading data from:', GOOGLE_SHEETS_CSV_URL);
-                
-                const proxyUrl = 'https://api.allorigins.win/raw?url=';
-                const targetUrl = encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
-                
-                // Fetch 최적화
-                const response = await fetch(proxyUrl + targetUrl, {
-                    method: 'GET',
-                    cache: 'no-cache',
-                    headers: {
-                        'Cache-Control': 'no-cache'
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+            const loadingDiv = document.getElementById('loading');
+            
+            // 여러 방법을 순서대로 시도
+            const methods = [
+                {
+                    name: '직접 접근',
+                    url: GOOGLE_SHEETS_CSV_URL,
+                    options: { mode: 'cors', cache: 'no-cache' }
+                },
+                {
+                    name: 'AllOrigins 프록시',
+                    url: `https://api.allorigins.win/raw?url=${encodeURIComponent(GOOGLE_SHEETS_CSV_URL)}`,
+                    options: { cache: 'no-cache' }
+                },
+                {
+                    name: 'CORS Anywhere',
+                    url: `https://cors-anywhere.herokuapp.com/${GOOGLE_SHEETS_CSV_URL}`,
+                    options: { cache: 'no-cache' }
+                },
+                {
+                    name: 'ThingProxy',
+                    url: `https://thingproxy.freeboard.io/fetch/${GOOGLE_SHEETS_CSV_URL}`,
+                    options: { cache: 'no-cache' }
                 }
+            ];
+
+            for (let i = 0; i < methods.length; i++) {
+                const method = methods[i];
                 
-                const csvText = await response.text();
-                console.log('CSV data received:', csvText.substring(0, 200) + '...');
-                
+                try {
+                    console.log(`🔄 시도 ${i + 1}: ${method.name}`);
+                    loadingDiv.innerHTML = `
+                        <div class="spinner"></div>
+                        캐릭터들을 불러오는 중입니다...<br>
+                        <small>(${method.name} 사용 중...)</small>
+                    `;
+                    
+                    // 타임아웃 설정 (15초)
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('요청 시간 초과')), 15000)
+                    );
+                    
+                    const fetchPromise = fetch(method.url, method.options);
+                    const response = await Promise.race([fetchPromise, timeoutPromise]);
+                    
+                    console.log(`✅ ${method.name} 응답 상태:`, response.status);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const csvText = await response.text();
+                    
+                    if (!csvText || csvText.trim().length < 10) {
+                        throw new Error('응답 데이터가 너무 짧습니다');
+                    }
+                    
+                    console.log(`✅ ${method.name}로 데이터 로드 성공!`);
+                    console.log('CSV 미리보기:', csvText.substring(0, 200) + '...');
+                    
+                    // 데이터 파싱 및 처리
+                    await processCharacterData(csvText);
+                    return; // 성공하면 함수 종료
+                    
+                } catch (error) {
+                    console.warn(`❌ ${method.name} 실패:`, error.message);
+                    
+                    // 마지막 시도가 아니면 계속
+                    if (i < methods.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
+                        continue;
+                    }
+                }
+            }
+            
+            // 모든 방법이 실패한 경우
+            throw new Error('모든 데이터 로드 방법이 실패했습니다. 시트 공유 설정을 확인해주세요.');
+        }
+
+        // 캐릭터 데이터 처리 함수
+        async function processCharacterData(csvText) {
+            try {
                 const rows = parseCSV(csvText);
-                console.log('Parsed rows:', rows.length);
+                console.log('파싱된 행 수:', rows.length);
                 
                 if (rows.length < 2) {
                     throw new Error('데이터가 부족합니다. 최소 헤더와 1개 행이 필요합니다.');
                 }
                 
                 const headers = rows[0];
-                console.log('Headers:', headers);
+                console.log('헤더:', headers);
+                
+                // 헤더 검증
+                if (!headers[0] || !headers[0].toString().includes('이름')) {
+                    console.warn('헤더가 예상과 다릅니다:', headers);
+                }
                 
                 characters = rows.slice(1)
                     .filter(row => row[0] && row[0].trim())
@@ -876,7 +941,7 @@
                         };
                     });
                 
-                console.log('Characters loaded:', characters.length);
+                console.log('로드된 캐릭터 수:', characters.length);
                 
                 if (characters.length === 0) {
                     throw new Error('유효한 캐릭터 데이터가 없습니다.');
@@ -888,7 +953,7 @@
                     [characters[i], characters[j]] = [characters[j], characters[i]];
                 }
                 
-                // 성능 최적화된 렌더링
+                // 성공적으로 렌더링
                 await renderCharactersOptimized();
                 
                 document.getElementById('loading').style.display = 'none';
@@ -897,9 +962,12 @@
                 initScrollToTop();
                 setupImageModal();
                 
+                // 성공 메시지
+                showToast(`✅ ${characters.length}개의 캐릭터를 성공적으로 로드했습니다!`, 'success');
+                
             } catch (error) {
-                console.error('Error loading characters:', error);
-                showErrorMessage(error);
+                console.error('데이터 처리 오류:', error);
+                throw error;
             }
         }
 
@@ -1259,11 +1327,13 @@
         // 토스트 메시지 (사용자 친화적 알림)
         function showToast(message, type = 'info') {
             const toast = document.createElement('div');
+            const bgColor = type === 'error' ? '#e74c3c' : type === 'success' ? '#27ae60' : '#f39c12';
+            
             toast.style.cssText = `
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                background: ${type === 'error' ? '#e74c3c' : '#f39c12'};
+                background: ${bgColor};
                 color: white;
                 padding: 15px 20px;
                 border-radius: 10px;
@@ -1272,6 +1342,8 @@
                 box-shadow: 0 4px 20px rgba(0,0,0,0.3);
                 transform: translateX(400px);
                 transition: transform 0.3s ease;
+                max-width: 300px;
+                word-wrap: break-word;
             `;
             toast.textContent = message;
             
@@ -1284,9 +1356,86 @@
             setTimeout(() => {
                 toast.style.transform = 'translateX(400px)';
                 setTimeout(() => {
-                    document.body.removeChild(toast);
+                    if (document.body.contains(toast)) {
+                        document.body.removeChild(toast);
+                    }
                 }, 300);
-            }, 3000);
+            }, type === 'error' ? 5000 : 3000);
+        }
+
+        // 개선된 에러 메시지 표시
+        function showErrorMessage(error) {
+            document.getElementById('loading').style.display = 'none';
+            
+            const errorDiv = document.getElementById('error');
+            
+            // 구체적인 해결책 제시
+            let troubleshootingSteps = '';
+            
+            if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
+                troubleshootingSteps = `
+                    <p><strong>🔧 해결 방법:</strong></p>
+                    <ol style="text-align: left; margin: 20px 0; padding-left: 20px;">
+                        <li><strong>Google Sheets 공유 설정 확인:</strong><br>
+                            - 시트 우측 상단 "공유" 클릭<br>
+                            - "링크가 있는 모든 사용자" 선택<br>
+                            - 권한: "뷰어"로 설정</li>
+                        <li><strong>시트 ID 확인:</strong><br>
+                            - 현재 ID: 1WDlNHl4JbT2b6qjI5p9p9drheY4vEBtCVkZ6MLJo8oc<br>
+                            - URL에서 정확한 ID 복사하여 config.js 수정</li>
+                        <li><strong>브라우저 새로고침:</strong><br>
+                            - Ctrl+F5 (강력 새로고침)</li>
+                        <li><strong>다른 브라우저에서 시도:</strong><br>
+                            - Chrome, Firefox, Safari 등</li>
+                    </ol>
+                `;
+            } else if (error.message.includes('데이터가 부족')) {
+                troubleshootingSteps = `
+                    <p><strong>📊 데이터 문제:</strong></p>
+                    <ul style="text-align: left; margin: 20px 0; padding-left: 20px;">
+                        <li>Google Sheets에 최소 1개 행의 데이터가 있는지 확인</li>
+                        <li>첫 번째 행이 헤더인지 확인</li>
+                        <li>첫 번째 열(캐릭터 이름)이 비어있지 않은지 확인</li>
+                    </ul>
+                `;
+            }
+            
+            errorDiv.innerHTML = `
+                <h3>❌ 데이터 로드 실패</h3>
+                <p>캐릭터 정보를 불러오는데 실패했습니다.</p>
+                <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin: 20px 0;">
+                    <strong>오류:</strong> ${error.message}
+                </div>
+                ${troubleshootingSteps}
+                <div style="margin-top: 30px;">
+                    <button onclick="testDirectAccess()" style="margin: 5px; padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                        🔗 직접 접근 테스트
+                    </button>
+                    <button onclick="location.reload()" style="margin: 5px; padding: 10px 15px; background: #f39c12; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                        🔄 다시 시도
+                    </button>
+                </div>
+            `;
+            errorDiv.style.display = 'block';
+        }
+
+        // 직접 접근 테스트 함수
+        function testDirectAccess() {
+            const testUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=0`;
+            console.log('테스트 URL:', testUrl);
+            
+            showToast('새 탭에서 시트 접근을 테스트합니다...', 'info');
+            
+            // 새 탭에서 열기
+            const newWindow = window.open(testUrl, '_blank');
+            
+            setTimeout(() => {
+                if (newWindow) {
+                    showToast('새 탭에서 CSV 데이터가 보이면 시트 설정이 올바릅니다.', 'info');
+                } else {
+                    showToast('팝업이 차단되었습니다. 브라우저 설정을 확인해주세요.', 'error');
+                }
+            }, 1000);
         }
 
         // 성능 모니터링 (개발용)
