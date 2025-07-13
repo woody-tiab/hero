@@ -650,30 +650,55 @@
         // Google Sheets에서 캐릭터 데이터 로드
         async function loadCharacters() {
             try {
-                // Google Sheets를 CSV로 가져오기
-                const response = await fetch(GOOGLE_SHEETS_CSV_URL);
-                const csvText = await response.text();
+                console.log('Loading data from:', GOOGLE_SHEETS_CSV_URL);
                 
-                // CSV 파싱
-                const rows = csvText.split('\n').map(row => row.split(',').map(cell => cell.trim().replace(/"/g, '')));
+                // Google Sheets를 CSV로 가져오기 (CORS 우회)
+                const proxyUrl = 'https://api.allorigins.win/raw?url=';
+                const targetUrl = encodeURIComponent(GOOGLE_SHEETS_CSV_URL);
+                const response = await fetch(proxyUrl + targetUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const csvText = await response.text();
+                console.log('CSV data received:', csvText.substring(0, 200) + '...');
+                
+                // CSV 파싱 (개선된 파서)
+                const rows = parseCSV(csvText);
+                console.log('Parsed rows:', rows.length);
+                
+                if (rows.length < 2) {
+                    throw new Error('데이터가 부족합니다. 최소 헤더와 1개 행이 필요합니다.');
+                }
+                
                 const headers = rows[0];
+                console.log('Headers:', headers);
                 
                 // 데이터 변환
-                characters = rows.slice(1).filter(row => row[0] && row[0].trim()).map((row, index) => {
-                    return {
-                        name: row[0] || '',
-                        creator: row[1] || '익명',
-                        introUrl: row[2] || '',
-                        photoUrl: row[3] || '',
-                        chatbotUrl: row[4] || '',
-                        videoUrl: row[5] || '',
-                        ability: row[6] || '미지의 능력',
-                        weapon: row[7] || '미지의 무기',
-                        age: parseInt(row[8]) || 0,
-                        likes: parseInt(row[9]) || 0,
-                        originalIndex: index
-                    };
-                });
+                characters = rows.slice(1)
+                    .filter(row => row[0] && row[0].trim())
+                    .map((row, index) => {
+                        return {
+                            name: (row[0] || '').trim(),
+                            creator: (row[1] || '익명').trim(),
+                            introUrl: (row[2] || '').trim(),
+                            photoUrl: (row[3] || '').trim(),
+                            chatbotUrl: (row[4] || '').trim(),
+                            videoUrl: (row[5] || '').trim(),
+                            ability: (row[6] || '미지의 능력').trim(),
+                            weapon: (row[7] || '미지의 무기').trim(),
+                            age: parseInt(row[8]) || 0,
+                            likes: parseInt(row[9]) || 0,
+                            originalIndex: index
+                        };
+                    });
+                
+                console.log('Characters loaded:', characters.length);
+                
+                if (characters.length === 0) {
+                    throw new Error('유효한 캐릭터 데이터가 없습니다.');
+                }
                 
                 // 캐릭터 배열을 랜덤으로 섞기
                 for (let i = characters.length - 1; i > 0; i--) {
@@ -694,8 +719,73 @@
             } catch (error) {
                 console.error('Error loading characters:', error);
                 document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
+                
+                // 에러 메시지 개선
+                const errorDiv = document.getElementById('error');
+                errorDiv.innerHTML = `
+                    <h3>❌ 데이터 로드 실패</h3>
+                    <p>캐릭터 정보를 불러오는데 실패했습니다.</p>
+                    <p><strong>가능한 원인:</strong></p>
+                    <ul style="text-align: left; margin: 20px 0;">
+                        <li>Google Sheets가 공개로 설정되지 않음</li>
+                        <li>시트 ID가 잘못됨</li>
+                        <li>인터넷 연결 문제</li>
+                        <li>시트에 데이터가 없음</li>
+                    </ul>
+                    <p><strong>해결 방법:</strong></p>
+                    <ol style="text-align: left; margin: 20px 0;">
+                        <li>Google Sheets를 "링크가 있는 모든 사용자"로 공유 설정</li>
+                        <li>config.js의 SHEET_ID 확인</li>
+                        <li>시트에 최소 1개 행의 데이터 입력</li>
+                        <li>페이지 새로고침</li>
+                    </ol>
+                    <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #f39c12; color: white; border: none; border-radius: 10px; cursor: pointer;">
+                        🔄 다시 시도
+                    </button>
+                `;
+                errorDiv.style.display = 'block';
             }
+        }
+
+        // 개선된 CSV 파서
+        function parseCSV(text) {
+            const rows = [];
+            const lines = text.split('\n');
+            
+            for (let line of lines) {
+                if (!line.trim()) continue;
+                
+                const row = [];
+                let currentField = '';
+                let inQuotes = false;
+                
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    
+                    if (char === '"') {
+                        if (inQuotes && line[i + 1] === '"') {
+                            // 연속된 따옴표는 이스케이프된 따옴표
+                            currentField += '"';
+                            i++; // 다음 따옴표 건너뛰기
+                        } else {
+                            // 따옴표 시작/끝
+                            inQuotes = !inQuotes;
+                        }
+                    } else if (char === ',' && !inQuotes) {
+                        // 필드 구분자
+                        row.push(currentField.trim());
+                        currentField = '';
+                    } else {
+                        currentField += char;
+                    }
+                }
+                
+                // 마지막 필드 추가
+                row.push(currentField.trim());
+                rows.push(row);
+            }
+            
+            return rows;
         }
 
         // 캐릭터 카드 렌더링
