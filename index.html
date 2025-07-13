@@ -152,7 +152,6 @@
             border-color: #e67e22;
         }
 
-        /* PC에서만 이미지 클릭 가능 */
         @media (min-width: 769px) {
             .character-image {
                 cursor: pointer;
@@ -310,7 +309,6 @@
             50% { transform: scale(1.3); }
         }
 
-        /* 맨 위로 버튼 */
         .scroll-to-top {
             position: fixed;
             bottom: 30px;
@@ -354,7 +352,6 @@
             transform: translateY(-3px) scale(1.05);
         }
 
-        /* 버튼 내부 화살표 애니메이션 */
         .scroll-to-top .arrow {
             transition: all 0.3s ease;
         }
@@ -368,7 +365,6 @@
             50% { transform: translateY(-3px); }
         }
 
-        /* 이미지 모달 (PC 전용) */
         .image-modal {
             display: none;
             position: fixed;
@@ -542,7 +538,6 @@
                 width: 100%;
             }
 
-            /* 모바일에서 맨위로 버튼 조정 */
             .scroll-to-top {
                 bottom: 25px;
                 right: 25px;
@@ -594,7 +589,6 @@
                 min-height: 50px;
             }
 
-            /* 작은 모바일에서 추가 조정 */
             .scroll-to-top {
                 bottom: 20px;
                 right: 20px;
@@ -641,6 +635,9 @@
         <div id="modal-info" class="modal-info"></div>
     </div>
 
+    <!-- 설정 파일 로드 -->
+    <script src="config.js"></script>
+    
     <script>
         // 전역 변수
         let characters = [];
@@ -650,40 +647,55 @@
             loadCharacters();
         });
 
-        // 캐릭터 데이터 로드
-        function loadCharacters() {
-            google.script.run
-                .withSuccessHandler(onLoadSuccess)
-                .withFailureHandler(onLoadError)
-                .getCharacters();
-        }
-
-        // 데이터 로드 성공
-        function onLoadSuccess(data) {
-            characters = data;
-            
-            // 캐릭터 배열을 랜덤으로 섞기
-            for (let i = characters.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [characters[i], characters[j]] = [characters[j], characters[i]];
+        // Google Sheets에서 캐릭터 데이터 로드
+        async function loadCharacters() {
+            try {
+                // Google Sheets를 CSV로 가져오기
+                const response = await fetch(GOOGLE_SHEETS_CSV_URL);
+                const csvText = await response.text();
+                
+                // CSV 파싱
+                const rows = csvText.split('\n').map(row => row.split(',').map(cell => cell.trim().replace(/"/g, '')));
+                const headers = rows[0];
+                
+                // 데이터 변환
+                characters = rows.slice(1).filter(row => row[0] && row[0].trim()).map((row, index) => {
+                    return {
+                        name: row[0] || '',
+                        creator: row[1] || '익명',
+                        introUrl: row[2] || '',
+                        photoUrl: row[3] || '',
+                        chatbotUrl: row[4] || '',
+                        videoUrl: row[5] || '',
+                        ability: row[6] || '미지의 능력',
+                        weapon: row[7] || '미지의 무기',
+                        age: parseInt(row[8]) || 0,
+                        likes: parseInt(row[9]) || 0,
+                        originalIndex: index
+                    };
+                });
+                
+                // 캐릭터 배열을 랜덤으로 섞기
+                for (let i = characters.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [characters[i], characters[j]] = [characters[j], characters[i]];
+                }
+                
+                renderCharacters();
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('characters-container').style.display = 'grid';
+                
+                // 맨 위로 버튼 초기화
+                initScrollToTop();
+                
+                // 이미지 모달 초기화 (PC 전용)
+                setupImageModal();
+                
+            } catch (error) {
+                console.error('Error loading characters:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
             }
-            
-            renderCharacters();
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('characters-container').style.display = 'grid';
-            
-            // 맨 위로 버튼 초기화
-            initScrollToTop();
-            
-            // 이미지 모달 초기화 (PC 전용)
-            setupImageModal();
-        }
-
-        // 데이터 로드 실패
-        function onLoadError(error) {
-            console.error('Error loading characters:', error);
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').style.display = 'block';
         }
 
         // 캐릭터 카드 렌더링
@@ -727,16 +739,16 @@
                 `;
             }
             
-            // 좋아요 버튼 (항상 표시)
+            // 좋아요 버튼 (읽기 전용으로 변경)
             buttonsHtml += `
-                <button id="like-btn-${index}" class="btn btn-like" onclick="likeCharacter('${character.name}', ${index})">
+                <div class="btn btn-like" style="cursor: default;">
                     <span class="heart">🤍</span>
                     좋아요
                     <span class="like-count">${character.likes}</span>
-                </button>
+                </div>
             `;
 
-            // 이미지 클릭 이벤트 - PC에서만 모달, 모바일에서는 클릭 비활성화
+            // 이미지 클릭 이벤트 - PC에서만 모달
             const imageClickEvent = window.innerWidth > 768 ? 
                 `onclick="openImageModal('${character.photoUrl}', '${character.name}', '${character.creator}')"` : '';
 
@@ -763,67 +775,10 @@
             return card;
         }
 
-        // 좋아요 버튼 클릭
-        function likeCharacter(characterName, index) {
-            const likeBtn = document.getElementById(`like-btn-${index}`);
-            
-            // 버튼 비활성화 (중복 클릭 방지)
-            likeBtn.disabled = true;
-            likeBtn.innerHTML = `
-                <span class="heart">⏳</span>
-                처리중
-                <span class="like-count">${characters[index].likes}</span>
-            `;
-
-            // 서버에 좋아요 업데이트 요청
-            google.script.run
-                .withSuccessHandler((newLikeCount) => onLikeSuccess(characterName, index, newLikeCount))
-                .withFailureHandler((error) => onLikeError(characterName, index, error))
-                .updateLikes(characterName);
-        }
-
-        // 좋아요 업데이트 성공
-        function onLikeSuccess(characterName, index, newLikeCount) {
-            // 캐릭터 데이터 업데이트
-            characters[index].likes = newLikeCount;
-
-            // 버튼 업데이트
-            const likeBtn = document.getElementById(`like-btn-${index}`);
-            likeBtn.disabled = false;
-            likeBtn.innerHTML = `
-                <span class="heart">🤍</span>
-                좋아요
-                <span class="like-count">${newLikeCount}</span>
-            `;
-
-            // 성공 애니메이션
-            likeBtn.style.animation = 'heartbeat 0.6s ease-in-out';
-            setTimeout(() => {
-                likeBtn.style.animation = '';
-            }, 600);
-        }
-
-        // 좋아요 업데이트 실패
-        function onLikeError(characterName, index, error) {
-            console.error('Error updating likes:', error);
-            
-            // 버튼 상태 복원
-            const likeBtn = document.getElementById(`like-btn-${index}`);
-            likeBtn.disabled = false;
-            likeBtn.innerHTML = `
-                <span class="heart">🤍</span>
-                좋아요
-                <span class="like-count">${characters[index].likes}</span>
-            `;
-            
-            alert('좋아요 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
-        }
-
         // 맨 위로 버튼 기능
         function initScrollToTop() {
             const scrollToTopBtn = document.getElementById('scroll-to-top');
             
-            // 스크롤 위치에 따라 버튼 표시/숨김
             function toggleScrollButton() {
                 if (window.scrollY > 300) {
                     scrollToTopBtn.classList.add('show');
@@ -832,7 +787,6 @@
                 }
             }
             
-            // 맨 위로 스크롤 함수
             function scrollToTop() {
                 window.scrollTo({
                     top: 0,
@@ -840,17 +794,14 @@
                 });
             }
             
-            // 이벤트 리스너 등록
             window.addEventListener('scroll', toggleScrollButton);
             scrollToTopBtn.addEventListener('click', scrollToTop);
             
-            // 초기 상태 설정
             toggleScrollButton();
         }
 
         // 이미지 모달 기능 (PC 전용)
         function openImageModal(imageSrc, characterName, creatorName) {
-            // 모바일에서는 모달 기능 비활성화
             if (window.innerWidth <= 768) {
                 return;
             }
@@ -859,36 +810,30 @@
             const modalImage = document.getElementById('modal-image');
             const modalInfo = document.getElementById('modal-info');
             
-            // 모달 내용 설정
             modalImage.src = imageSrc;
             modalImage.alt = characterName;
             modalInfo.textContent = `${characterName} (제작: ${creatorName})`;
             
-            // 모달 표시
             modal.style.display = 'block';
             setTimeout(() => {
                 modal.classList.add('show');
             }, 10);
             
-            // 스크롤 방지
             document.body.style.overflow = 'hidden';
         }
 
         function closeImageModal() {
             const modal = document.getElementById('image-modal');
             
-            // 모달 숨김 애니메이션
             modal.classList.remove('show');
             setTimeout(() => {
                 modal.style.display = 'none';
-                // 스크롤 복원
                 document.body.style.overflow = 'auto';
             }, 300);
         }
 
         // 모달 관련 이벤트 리스너 설정 (PC 전용)
         function setupImageModal() {
-            // 모바일에서는 모달 이벤트 리스너 설정하지 않음
             if (window.innerWidth <= 768) {
                 return;
             }
