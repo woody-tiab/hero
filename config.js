@@ -6,7 +6,7 @@ const GOOGLE_SHEETS_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID
 
 // Google Apps Script Web App URL (좋아요 API용)
 // ⚠️ 이 URL을 Apps Script 배포 후 실제 URL로 변경해야 합니다!
-const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbxlRwgtmgMOQgeOO4k8lfC5l47jWC9bvOBrwXem_aSA7i3GI6cxc4PC9lpR2I1KPjll/exec';
+const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbz7PDmNtKO4e9G5tBHtUqCkkBZ4ek2ViZJydYn7Ur9g3oeR7pHwQ4g7zTqFZn7Xx7Tx/exec';
 
 // 웹사이트 설정
 const SITE_CONFIG = {
