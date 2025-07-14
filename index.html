@@ -1062,40 +1062,45 @@
             const container = document.getElementById('characters-container');
             container.innerHTML = '';
             
-            // 배치 렌더링으로 성능 최적화
-            const batchSize = 6; // 한 번에 6개씩 렌더링
+            // 전체 캐릭터를 한 번에 렌더링 (배치 렌더링 제거)
+            characters.forEach((character, index) => {
+                const card = createOptimizedCharacterCard(character, index);
+                card.classList.add('preload');
+                container.appendChild(card);
+                
+                // 순차적 애니메이션
+                setTimeout(() => {
+                    card.classList.add('loaded');
+                }, index * 100);
+            });
             
-            for (let i = 0; i < characters.length; i += batchSize) {
-                const batch = characters.slice(i, i + batchSize);
-                
-                // RequestAnimationFrame으로 부드러운 렌더링
-                await new Promise(resolve => {
-                    requestAnimationFrame(() => {
-                        batch.forEach((character, batchIndex) => {
-                            const card = createOptimizedCharacterCard(character, i + batchIndex);
-                            card.classList.add('preload');
-                            container.appendChild(card);
-                            
-                            // 약간의 지연으로 순차적 애니메이션
-                            setTimeout(() => {
-                                card.classList.add('loaded');
-                            }, batchIndex * 100);
-                        });
-                        resolve();
+            // 모든 카드 렌더링 완료 후 이벤트 리스너 추가
+            setTimeout(() => {
+                console.log('모든 캐릭터 카드 렌더링 완료');
+                // 첫 번째 카드 디버깅
+                const firstCard = container.querySelector('.character-card');
+                if (firstCard) {
+                    const firstImage = firstCard.querySelector('.character-image');
+                    console.log('첫 번째 카드 이미지 데이터:', {
+                        modal: firstImage.dataset.modal,
+                        src: firstImage.dataset.src,
+                        name: firstImage.dataset.name,
+                        creator: firstImage.dataset.creator,
+                        alt: firstImage.alt
                     });
-                });
-                
-                // 다음 배치 전 잠깐 대기 (논블로킹)
-                if (i + batchSize < characters.length) {
-                    await new Promise(resolve => setTimeout(resolve, 50));
                 }
-            }
+            }, 100);
         }
 
         // 최적화된 캐릭터 카드 생성
         function createOptimizedCharacterCard(character, index) {
             const card = document.createElement('div');
             card.className = 'character-card';
+            
+            // 디버깅: 첫 번째 캐릭터 확인
+            if (index === 0) {
+                console.log('첫 번째 캐릭터 카드 생성:', character);
+            }
             
             let buttonsHtml = `
                 <a href="${character.introUrl}" target="_blank" class="btn btn-primary" rel="noopener">
@@ -1127,23 +1132,57 @@
                 </button>
             `;
 
-            // 이미지 클릭 이벤트는 이벤트 위임으로 처리 (모든 기기에서 동작)
-            // 특수문자 이스케이프 처리 추가
+            // 특수문자 이스케이프 함수
             const escapeHtml = (text) => {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
+                if (!text) return '';
+                return text.replace(/&/g, '&amp;')
+                          .replace(/</g, '&lt;')
+                          .replace(/>/g, '&gt;')
+                          .replace(/"/g, '&quot;')
+                          .replace(/'/g, '&#x27;');
             };
             
-            const imageClickData = `data-modal="true" data-src="${escapeHtml(character.photoUrl)}" data-name="${escapeHtml(character.name)}" data-creator="${escapeHtml(character.creator)}"`;
+            // 안전한 데이터 준비
+            const safeName = escapeHtml(character.name) || '';
+            const safeCreator = escapeHtml(character.creator) || '';
+            const safePhotoUrl = character.photoUrl || '';
+            
+            // 첫 번째 캐릭터 특별 디버깅
+            if (index === 0) {
+                console.log('첫 번째 캐릭터 데이터 준비:', {
+                    원본: { name: character.name, creator: character.creator, photoUrl: character.photoUrl },
+                    안전화: { safeName, safeCreator, safePhotoUrl }
+                });
+            }
 
+            // 이미지 요소를 먼저 생성하고 속성 직접 설정
+            const img = document.createElement('img');
+            img.src = safePhotoUrl;
+            img.alt = character.name || '';
+            img.className = 'character-image';
+            img.loading = 'lazy';
+            img.onerror = function() {
+                this.src = 'https://via.placeholder.com/200x200/f39c12/2c3e50?text=No+Image';
+            };
+            
+            // 데이터 속성을 JavaScript로 직접 설정
+            img.dataset.modal = 'true';
+            img.dataset.src = safePhotoUrl;
+            img.dataset.name = character.name || '';
+            img.dataset.creator = character.creator || '';
+            
+            // 첫 번째 캐릭터 이미지 데이터 확인
+            if (index === 0) {
+                console.log('첫 번째 이미지 dataset 설정:', {
+                    modal: img.dataset.modal,
+                    src: img.dataset.src,
+                    name: img.dataset.name,
+                    creator: img.dataset.creator
+                });
+            }
+
+            // 카드 내용 설정 (이미지는 별도로 추가)
             card.innerHTML = `
-                <img src="${character.photoUrl}" 
-                     alt="${escapeHtml(character.name)}" 
-                     class="character-image" 
-                     ${imageClickData}
-                     loading="lazy"
-                     onerror="this.src='https://via.placeholder.com/200x200/f39c12/2c3e50?text=No+Image'">
                 <div class="character-name">${character.name}</div>
                 <div class="character-info">
                     <div class="character-info-row">
@@ -1159,6 +1198,9 @@
                     ${buttonsHtml}
                 </div>
             `;
+            
+            // 이미지를 맨 앞에 삽입
+            card.insertBefore(img, card.firstChild);
             
             return card;
         }
