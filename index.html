@@ -1128,11 +1128,18 @@
             `;
 
             // 이미지 클릭 이벤트는 이벤트 위임으로 처리 (모든 기기에서 동작)
-            const imageClickData = `data-modal="true" data-src="${character.photoUrl}" data-name="${character.name}" data-creator="${character.creator}"`;
+            // 특수문자 이스케이프 처리 추가
+            const escapeHtml = (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            
+            const imageClickData = `data-modal="true" data-src="${escapeHtml(character.photoUrl)}" data-name="${escapeHtml(character.name)}" data-creator="${escapeHtml(character.creator)}"`;
 
             card.innerHTML = `
                 <img src="${character.photoUrl}" 
-                     alt="${character.name}" 
+                     alt="${escapeHtml(character.name)}" 
                      class="character-image" 
                      ${imageClickData}
                      loading="lazy"
@@ -1167,13 +1174,35 @@
                 likeCharacter(characterName, index);
             }
             
-            // 이미지 모달 클릭 (PC만)
+            // 이미지 모달 클릭 (모든 기기에서 동작)
             if (e.target.classList.contains('character-image') && e.target.dataset.modal) {
                 e.preventDefault();
                 const src = e.target.dataset.src;
                 const name = e.target.dataset.name;
                 const creator = e.target.dataset.creator;
-                openImageModal(src, name, creator);
+                
+                console.log('이미지 클릭 감지:', { src, name, creator }); // 디버깅용
+                
+                // 데이터가 올바르게 있는지 확인
+                if (src && name && creator) {
+                    openImageModal(src, name, creator);
+                } else {
+                    console.error('모달 데이터 누락:', { src, name, creator });
+                    // 대체 방법: alt 속성과 주변 요소에서 데이터 추출
+                    const altName = e.target.alt;
+                    const cardElement = e.target.closest('.character-card');
+                    const nameElement = cardElement?.querySelector('.character-name');
+                    const creatorElement = cardElement?.querySelector('.character-info-item:first-child');
+                    
+                    if (altName && nameElement && creatorElement) {
+                        const fallbackName = nameElement.textContent.trim();
+                        const fallbackCreator = creatorElement.textContent.replace('제작자:', '').trim();
+                        console.log('대체 데이터 사용:', { src: e.target.src, name: fallbackName, creator: fallbackCreator });
+                        openImageModal(e.target.src, fallbackName, fallbackCreator);
+                    } else {
+                        showToast('모달 정보를 불러올 수 없습니다.', 'error');
+                    }
+                }
             }
             
             // 맨 위로 버튼 클릭
