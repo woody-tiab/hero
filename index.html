@@ -1177,31 +1177,71 @@
             // 이미지 모달 클릭 (모든 기기에서 동작)
             if (e.target.classList.contains('character-image') && e.target.dataset.modal) {
                 e.preventDefault();
-                const src = e.target.dataset.src;
-                const name = e.target.dataset.name;
-                const creator = e.target.dataset.creator;
                 
-                console.log('이미지 클릭 감지:', { src, name, creator }); // 디버깅용
+                // 모바일 디버깅 강화
+                console.log('=== 이미지 클릭 디버깅 ===');
+                console.log('클릭된 이미지:', e.target);
+                console.log('data-src:', e.target.dataset.src);
+                console.log('data-name:', e.target.dataset.name);
+                console.log('data-creator:', e.target.dataset.creator);
+                console.log('alt 속성:', e.target.alt);
+                console.log('현재 화면 너비:', window.innerWidth);
                 
-                // 데이터가 올바르게 있는지 확인
-                if (src && name && creator) {
+                let src = e.target.dataset.src;
+                let name = e.target.dataset.name;
+                let creator = e.target.dataset.creator;
+                
+                // 데이터가 누락된 경우 DOM에서 추출 (특히 모바일에서)
+                if (!name || !creator) {
+                    console.log('데이터 누락 감지, DOM에서 추출 시도...');
+                    
+                    const cardElement = e.target.closest('.character-card');
+                    console.log('카드 요소:', cardElement);
+                    
+                    if (cardElement) {
+                        // 캐릭터 이름 추출
+                        const nameElement = cardElement.querySelector('.character-name');
+                        console.log('이름 요소:', nameElement);
+                        if (nameElement && !name) {
+                            name = nameElement.textContent.trim();
+                            console.log('추출된 이름:', name);
+                        }
+                        
+                        // 제작자 추출 (더 안전한 방법)
+                        const creatorElements = cardElement.querySelectorAll('.character-info-item');
+                        console.log('정보 요소들:', creatorElements);
+                        
+                        for (let element of creatorElements) {
+                            const text = element.textContent || element.innerText;
+                            console.log('정보 요소 텍스트:', text);
+                            if (text.includes('제작자:') && !creator) {
+                                creator = text.replace('제작자:', '').trim();
+                                console.log('추출된 제작자:', creator);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // 여전히 데이터가 없으면 기본값 사용
+                    if (!name) {
+                        name = e.target.alt || '알 수 없는 캐릭터';
+                        console.log('기본 이름 사용:', name);
+                    }
+                    if (!creator) {
+                        creator = '알 수 없는 제작자';
+                        console.log('기본 제작자 사용:', creator);
+                    }
+                }
+                
+                // 최종 데이터 확인
+                console.log('최종 데이터:', { src, name, creator });
+                console.log('========================');
+                
+                if (src) {
                     openImageModal(src, name, creator);
                 } else {
-                    console.error('모달 데이터 누락:', { src, name, creator });
-                    // 대체 방법: alt 속성과 주변 요소에서 데이터 추출
-                    const altName = e.target.alt;
-                    const cardElement = e.target.closest('.character-card');
-                    const nameElement = cardElement?.querySelector('.character-name');
-                    const creatorElement = cardElement?.querySelector('.character-info-item:first-child');
-                    
-                    if (altName && nameElement && creatorElement) {
-                        const fallbackName = nameElement.textContent.trim();
-                        const fallbackCreator = creatorElement.textContent.replace('제작자:', '').trim();
-                        console.log('대체 데이터 사용:', { src: e.target.src, name: fallbackName, creator: fallbackCreator });
-                        openImageModal(e.target.src, fallbackName, fallbackCreator);
-                    } else {
-                        showToast('모달 정보를 불러올 수 없습니다.', 'error');
-                    }
+                    console.error('이미지 URL이 없습니다');
+                    showToast('이미지를 불러올 수 없습니다.', 'error');
                 }
             }
             
@@ -1335,20 +1375,34 @@
             const modalImage = document.getElementById('modal-image');
             const modalInfo = document.getElementById('modal-info');
             
+            // 디버깅: 전달받은 데이터 확인
+            console.log('모달 열기 데이터:', { 
+                imageSrc, 
+                characterName, 
+                creatorName, 
+                isMobile: window.innerWidth <= 768 
+            });
+            
             // 모달 콘텐츠 설정
             modalImage.src = imageSrc;
             modalImage.alt = characterName;
+            
+            // 데이터 검증 및 기본값 설정
+            const safeName = characterName || '알 수 없는 캐릭터';
+            const safeCreator = creatorName || '알 수 없는 제작자';
             
             // 모바일과 PC에서 다른 형식으로 표시
             if (window.innerWidth <= 768) {
                 // 모바일: 2줄로 표시
                 modalInfo.innerHTML = `
-                    <div style="font-size: 1.3em; margin-bottom: 5px;">${characterName}</div>
-                    <div style="font-size: 0.9em; opacity: 0.8;">(제작: ${creatorName})</div>
+                    <div style="font-size: 1.3em; margin-bottom: 5px; font-weight: bold;">${safeName}</div>
+                    <div style="font-size: 0.9em; opacity: 0.8;">(제작: ${safeCreator})</div>
                 `;
+                console.log('모바일 모달 정보 설정:', modalInfo.innerHTML);
             } else {
                 // PC: 한 줄로 표시
-                modalInfo.textContent = `${characterName} (제작: ${creatorName})`;
+                modalInfo.textContent = `${safeName} (제작: ${safeCreator})`;
+                console.log('PC 모달 정보 설정:', modalInfo.textContent);
             }
             
             // 바디 스크롤 방지 (위치 고정)
